@@ -197,11 +197,36 @@ elif entry == 3:
         selector = "concat(artist, ' - ', title)"
     elif sys.argv[2] == 'y':
         selector = 'date'
-    
+    elif sys.argv[2] == 'r':
+        try:
+            with open('playlist') as file_1:
+                fine_playlist = file_1.read().split('\n')
+            if fine_playlist:
+                print('Remains', len(fine_playlist), 'songs to listen')
+                for id, i in enumerate(fine_playlist):
+                    fine_playlist.pop(id)
+                    with open('playlist', 'w')  as file_2:
+                        file_2.write('\n'.join(fine_playlist))
+                    subprocess.run(['mpv', i])
+   
+            else:
+                playlist = [i[0] for i in cur.execute(f"""SELECT path from items order by random()""")]
+                with open('playlist', 'w')  as file_3:
+                    file_3.write('\n'.join(playlist))
+        except FileNotFoundError:
+            playlist = [i[0] for i in cur.execute(f"""SELECT path from items order by random()""")]
+            with open('playlist', 'w')  as file_3:
+                file_3.write('\n'.join(playlist))
+
+        exit()
     data = [i[0] for i in cur.execute(f"""SELECT distinct {selector} from items order by 1 DESC""")]    
     while True: 
-        print(*data,  sep='\n')
-
+        if len(data) > 529:
+            formatted_text = "\n".join(data)
+            subprocess.run(["less", "-R"], input=formatted_text, text=True)
+        else:
+            for i in data[:529]:
+                print(i)
         entry = input('>>> ').split(' ')
         if len(entry) == 0:
             exit()
@@ -212,7 +237,7 @@ elif entry == 3:
                 entry[id] = f'{i}'
             entry = tuple(entry)
 
-        playlist = [i[0] for i in cur.execute(f"""SELECT path from items where {selector} in {entry} order by bpm, random()""")]
+        playlist = [i[0] for i in cur.execute(f"""SELECT path from items where {selector} in {entry} order by random()""")]
         subprocess.run(['mpv'] + playlist)
 
 elif entry == 4:
