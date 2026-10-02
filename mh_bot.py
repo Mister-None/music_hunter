@@ -22,14 +22,34 @@ def sub(raw):
     return raw.lower().strip() 
 
 if len(sys.argv) < 2:
-    lst_functions = ['', 'add to base', 'clean metadata', 'play by arist/title/genre/year', 'normalize', 'remove duplicactes', 'update base', 'remove from base', 'create playlists', 'add specific base', 'find missed id']
+    lst_functions = ['', 'add to base', 'clean metadata', 'play by arist/title/genre/year', 'normalize', 'remove duplicactes', 'update base', 'remove from base', 'create playlists', 'add specific base', 'find missed id', 'select random songs from other base']
     print(Fore.RED + 'Enter number of function!')
     [print(Fore.LIGHTYELLOW_EX + str(id), Fore.LIGHTGREEN_EX + '==>', Fore.LIGHTBLUE_EX +i) for id, i in enumerate(lst_functions) if i]
     sys.exit(1)
 
 entry = int(sys.argv[1])
 
-if entry == 10:
+if entry == 11:
+    qty = int(sys.argv[2])
+    cur.execute(f"""WITH selected_songs AS (
+        SELECT c.unique_song
+        FROM coma_fm c
+        WHERE c.unique_song NOT IN (
+            SELECT concat(artist, ' - ', title) 
+            FROM items
+        )
+        AND status is NULL
+        ORDER BY random()
+        LIMIT {qty}
+        )
+        UPDATE coma_fm
+        SET status=1
+        FROM selected_songs
+        WHERE coma_fm.unique_song=selected_songs.unique_song
+        RETURNING replace(coma_fm.unique_song, '_', ' ') AS formatted_song;""")
+    results = [print(row[0]) for row in cur.fetchall()]
+
+elif entry == 10:
     ids = [int(i.replace('.opus', '')) for i in os.listdir('Music')]
     ids.sort()
     idial_ids = [j for j in range(1,  max(ids)+1)]
@@ -48,7 +68,7 @@ if entry == 0:
 
 elif entry == 1:
     counter = 0
-    music_formats = ["*.opus","*.m4a"]
+    music_formats = ["*.opus","*.m4a","*.mp3"]
     for mf in music_formats:
         for i in tqdm(glob.glob(mf)):
             track = AudioFileClip(i)
@@ -183,7 +203,7 @@ elif entry == 2:
 
 elif entry == 3:
     if len(sys.argv) < 3:
-        sub_lst_functions = [['a', 'select by artist/band'], ['t', 'select by title'], ['g', 'select by genre'], ['y', 'select by year']]
+        sub_lst_functions = [['a', 'select by artist/band'], ['t', 'select by title'], ['g', 'select by genre'], ['y', 'select by year'], ['r', 'select by random']]
         print(Fore.RED + 'Enter number of function!')
         [print(Fore.LIGHTYELLOW_EX + x[0], Fore.LIGHTGREEN_EX + '==>', Fore.LIGHTBLUE_EX + x[1]) for x in sub_lst_functions]
         exit()
