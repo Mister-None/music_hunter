@@ -1,4 +1,4 @@
-import subprocess, re, sys, requests, os
+import subprocess, re, sys, requests, os, yt_dlp
 from dotenv import load_dotenv
 from colorama import Fore, init
 
@@ -180,12 +180,34 @@ def youtube_search(n):
                 print(f"{Fore.LIGHTYELLOW_EX}{id}{Fore.LIGHTWHITE_EX}==> {Fore.LIGHTMAGENTA_EX}{title} {Fore.LIGHTWHITE_EX}==> {Fore.LIGHTCYAN_EX}{duration} {Fore.LIGHTWHITE_EX}==> {Fore.LIGHTBLUE_EX}{pub_date} {Fore.LIGHTWHITE_EX}==> {Fore.YELLOW}{views}")
 
         lst1.append('https://youtu.be/'+i['id'])
+
 youtube_search(None)
+ydl_opts = {
+'format': 'bestaudio/best',
+    'format': 'bestaudio/best',
+    'quiet': True,
+    'noprogress': True,
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'opus',      # Options: 'mp3', 'm4a', 'wav', 'flac', 'opus', etc.
+        'preferredquality': '0',       # '0' = VBR best quality, or specify bitrate like '320'
+    }],
+    }
+    
+
 
 while True:
     n = input(Fore.LIGHTGREEN_EX + '>>> ')
     if n in ['q', 'й', ' ']: break
     elif n in ['r', 'к']: youtube_search(None)
+    elif n == 'sp':
+        spotify_link = input('link >>> ').strip()
+        subprocess.run(["spotifydl", 'embedded',  spotify_link])
+        for i in os.listdir('Music'):
+            if i.endswith('.mp3'):
+                subprocess.run(["mv", f"Music/{i}", i])
+
+        youtube_search(None)
     elif n  in ['next', 'prev'] and sys.argv[1] in ['b', 'f', 'w']: youtube_search(n)
     elif n  in ['next', 'prev']:
         old_query = raw_query
@@ -195,7 +217,8 @@ while True:
             if n.endswith('d'):
                 selected_id = int(re.search(r'\d+',  n).group(0))
                 if id1 == selected_id:
-                    subprocess.run(['yt-dlp', lst1[id1], '-x', '--quiet'])
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([lst1[id1]])
 
             elif '-' in n:
                 min_id = int(n.split('-')[0])
