@@ -220,7 +220,7 @@ elif entry == 3:
     elif sys.argv[2] == 'r':
         try:
             with open('playlist') as file_1:
-                fine_playlist = file_1.read().split('\n')
+                fine_playlist = str(file_1.read()).strip().split('\n')
             if fine_playlist:
                 print('Remains', len(fine_playlist), 'songs to listen')
                 for id, i in enumerate(fine_playlist):
