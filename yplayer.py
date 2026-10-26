@@ -1,13 +1,18 @@
-import subprocess, re, sys, requests, os, yt_dlp
+import subprocess, re, sys, requests, os, yt_dlp, sqlite3
 from dotenv import load_dotenv
 from colorama import Fore, init
+from time import sleep
 
 load_dotenv(dotenv_path=os.getenv('DOTENV_FILE_PATH'))
 init(autoreset=True)
 
-
+MS_DATA = os.getenv('ms_data')
 youtube_key = os.getenv('YPLAYER_KEY')
 base_url = os.getenv('BASE_URL')
+
+con = sqlite3.connect(MS_DATA)
+cur = con.cursor()
+
 next_page_token = []
 prev_page_token = []
 
@@ -26,19 +31,11 @@ elif sys.argv[1] == 'p':
     content_type = 'playlist'
 
 def youtube_search(n):
-    global lst1, lst0, blacklist, bl_path, favourite, fv_path, search_params, raw_query, wt_path, watched, min_number, max_number, old_max_number 
+    global lst1, lst0, blacklist, favourite, search_params, raw_query, watched, min_number, max_number, old_max_number 
     lst1 = []
-
-    bl_path = os.getenv('BL_PATH')
-    fv_path = os.getenv('FV_PATH')
-    wt_path = os.getenv('WT_PATH')
-
-    with open(bl_path, 'r') as f:
-        blacklist = [i for i in f.read().split('\n') if i]
-    with open(fv_path, 'r') as f:
-        favourite = [i for i in f.read().split('\n') if i]
-    with open(wt_path, 'r') as f:
-        watched = [i for i in f.read().split('\n') if i]
+    blacklist = [i[0] for i in cur.execute("SELECT id FROM yt_history WHERE status='blacklist'")]
+    favourite = [i[0] for i in cur.execute("SELECT id FROM yt_history WHERE status='favourite'")]
+    watched = [i[0] for i in cur.execute("SELECT id FROM yt_history WHERE status='watched'")]
 
     if sys.argv[1] not in ['f', 'b', 'w']:
         if n  in ['next', 'prev']:
@@ -88,13 +85,16 @@ def youtube_search(n):
             try: prev_page_token.pop()
             except: pass
             prev_page_token.append(results['prevPageToken'])
+
         elif n == 'prev':
             try: search_params['pageToken'] = prev_page_token[0]
             except IndexError: print('This is the first page!!!'), exit()
             results = requests.get(f"{base_url}search?videoDuration={query_duration}", params=search_params).json()
             prev_page_token.pop()
+
             try: prev_page_token.append(results['prevPageToken'])
             except KeyError: pass
+
         lst0 = [i['id'][f'{content_type}Id'] for i in results['items'] if content_type in i['id']['kind'] and  not (i['id'][f'{content_type}Id'] in blacklist or i['id'][f'{content_type}Id'] in favourite or i['id'][f'{content_type}Id'] in watched)]
     if sys.argv[1] in ['f', 'b', 'w']:
         if sys.argv[1] == 'b':
@@ -189,29 +189,37 @@ ydl_opts = {
     'noprogress': True,
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'opus',      # Options: 'mp3', 'm4a', 'wav', 'flac', 'opus', etc.
-        'preferredquality': '0',       # '0' = VBR best quality, or specify bitrate like '320'
+        'preferredcodec': 'opus',
+        'preferredquality': '0',
     }],
     }
-    
-
 
 while True:
-    n = input(Fore.LIGHTGREEN_EX + '>>> ')
+    try: n = input('>>> ')
+    except (KeyboardInterrupt, EOFError):
+        con.commit()
+        cur.close()
+        con.close()
+        exit()
     if n in ['q', 'й', ' ']: break
     elif n in ['r', 'к']: youtube_search(None)
     elif n == 'sp':
+        subprocess.Popen(
+                ["qutebrowser", f"https://www.google.com/search?q={raw_query}"], 
+                stdout=subprocess.DEVNULL, 
+                stderr=subprocess.DEVNULL
+            )
         spotify_link = input('link >>> ').strip()
         subprocess.run(["spotifydl", 'embedded',  spotify_link])
         for i in os.listdir('Music'):
-            if i.endswith('.mp3'):
-                subprocess.run(["mv", f"Music/{i}", i])
-
+            if i.endswith('.mp3'): subprocess.run(["mv", f"Music/{i}", i])
         youtube_search(None)
+
     elif n  in ['next', 'prev'] and sys.argv[1] in ['b', 'f', 'w']: youtube_search(n)
     elif n  in ['next', 'prev']:
         old_query = raw_query
         youtube_search(n)
+
     else:
         for id1, i in enumerate(lst1):
             if n.endswith('d'):
@@ -225,45 +233,54 @@ while True:
                 max_id = int(n.split('-')[-1])
                 if min_id <= id1 <= max_id:
                     print(lst1[id1])
-                    with open(wt_path, 'a') as f: f.write(lst1[id1][17:]+'\n')
+                    cur.execute(f"INSERT INTO yt_history(id, status) VALUES('{lst1[id1][17:]}', 'watched')")                    
                     subprocess.run(['mpv', lst1[id1], '--no-video'])
+
             elif ',' in n:
                 selected_ids = n.split(',')
                 if id1 in [int(i) for i in selected_ids]:
                     print(id1, '>>>', lst1[id1])
-                    with open(wt_path, 'a') as f: f.write(lst1[id1][17:]+'\n')
+                    cur.execute(f"INSERT INTO yt_history(id, status) VALUES('{lst1[id1][17:]}', 'watched')")                    
                     subprocess.run(['mpv', lst1[id1], '--no-video'])
+
             elif '<=' in n:
                 min_id = int(n.split('<=')[0])
                 if id1 >= min_id:
                     print(id1, '>>>', lst1[id1])
-                    with open(wt_path, 'a') as f: f.write(lst1[id1][17:]+'\n')
+                    cur.execute(f"INSERT INTO yt_history(id, status) VALUES('{lst1[id1][17:]}', 'watched')")                    
                     subprocess.run(['mpv', lst1[id1], '--no-video'])
+
             elif '>=' in n:
                 max_id = int(n.split('>=')[0])
                 if id1 <= max_id:
                     print(id1, '>>>', lst1[id1])
-                    with open(wt_path, 'a') as f: f.write(lst1[id1][17:]+'\n')
+                    cur.execute(f"INSERT INTO yt_history(id, status) VALUES('{lst1[id1][17:]}', 'watched')")                    
                     subprocess.run(['mpv', lst1[id1], '--no-video',])
+
             elif 'bl' in n:
                 selected_id = int(n.split('bl')[0])
                 bl_video_id = lst1[id1].split('.be/')[-1]
                 if bl_video_id not in blacklist and id1==selected_id:
-                    with open(bl_path, 'a') as f:
-                        f.write(bl_video_id+'\n')
-                        continue
+                    cur.execute(f"INSERT INTO yt_history(id, status) VALUES('{bl_video_id}', 'blacklist')")
+                    continue
+            
             elif n.endswith('f'):
                 selected_id = int(re.search(r'\d+',  n).group(0))
                 fv_video_id = lst1[id1].split('.be/')[-1]
                 if fv_video_id not in favourite and id1==selected_id:
-                    with open(fv_path, 'a') as f:
-                        f.write('https://youtu.be/'+fv_video_id+'\n')
-                        continue
+                    cur.execute(f"INSERT INTO yt_history(id, status) VALUES('{fv_video_id}', 'favourite')")                    
+                    continue
+
             elif sys.argv[1] in ['c', 'v', 'p'] and id1 == int(n):
+                cur.execute(f"INSERT INTO yt_history(id, status) VALUES('{lst1[id1][17:]}', 'watched')")                    
                 print(id1, '>>>', lst1[id1])
-                with open(wt_path, 'a') as f: f.write(lst1[id1][17:]+'\n')
                 subprocess.run(['mpv', lst1[int(n)]])
+
             elif id1 == int(n):
-                with open(wt_path, 'a') as f: f.write(lst1[id1][17:]+'\n')
+                cur.execute(f"INSERT INTO yt_history(id, status) VALUES('{lst1[id1][17:]}', 'watched')")                    
                 print(lst1[int(n)])
                 subprocess.run(['mpv', lst1[int(n)], '--no-video'])
+
+con.commit()
+cur.close()
+con.close()

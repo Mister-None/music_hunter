@@ -1,11 +1,9 @@
-import requests, json, os, sqlite3, re, subprocess, sys, glob, time, pandas as pd,numpy as np, librosa
+import requests, json, os, sqlite3, re, subprocess, sys, glob, time, pandas as pd, numpy as np, librosa
 from moviepy import AudioFileClip
 from dotenv import load_dotenv
-from colorama import Fore, init
 from tqdm import tqdm
-
+from common_functions import CommonFunctions
 load_dotenv(dotenv_path=os.getenv('DOTENV_FILE_PATH'))
-init(autoreset=True)
 
 MS_DATA = os.getenv('ms_data')
 MS_FOLDER = os.getenv('ms_folder')
@@ -22,10 +20,7 @@ def sub(raw):
     return raw.lower().strip() 
 
 if len(sys.argv) < 2:
-    lst_functions = ['', 'add to base', 'clean metadata', 'play by arist/title/genre/year', 'normalize', 'remove duplicactes', 'update base', 'remove from base', 'create playlists', 'add specific base', 'find missed id', 'select random songs from other base']
-    print(Fore.RED + 'Enter number of function!')
-    [print(Fore.LIGHTYELLOW_EX + str(id), Fore.LIGHTGREEN_EX + '==>', Fore.LIGHTBLUE_EX +i) for id, i in enumerate(lst_functions) if i]
-    sys.exit(1)
+    CommonFunctions.list_of_functions('', 'add to base', 'clean metadata', 'play by arist/title/genre/year', 'normalize', 'remove duplicactes', 'update base', 'remove from base', 'create playlists', 'add specific base', 'find missed id', 'select random songs from other base')
 
 entry = int(sys.argv[1])
 
@@ -74,7 +69,7 @@ elif entry == 1:
             track = AudioFileClip(i)
             duration = track.duration
             if counter == 100:
-                print(Fore.LIGHTGREEN_EX + 'done')
+                print('done')
                 con.commit()
                 cur.close()
                 con.close()
@@ -129,7 +124,7 @@ elif entry == 1:
                         continue
 
                 except requests.exceptions.JSONDecodeError as e:
-                    print(Fore.LIGHTRED_EX + str(e))
+                    print(e)
                     con.commit()
                     cur.close()
                     con.close()
@@ -185,8 +180,7 @@ elif entry == 1:
                                        '{genre}')
                                """)
 
-                else: 
-                    print(Fore.LIGHTGREEN_EX + str(artist + ' ' +  title), 'in database!!!')
+                else: print(artist, title, 'in database!!!')
                 subprocess.run(['rm', i])
                 subprocess.run(['rm', 'sample.mp3'])
                 y, sr = librosa.load(path, sr=None)
@@ -204,8 +198,8 @@ elif entry == 2:
 elif entry == 3:
     if len(sys.argv) < 3:
         sub_lst_functions = [['a', 'select by artist/band'], ['t', 'select by title'], ['g', 'select by genre'], ['y', 'select by year'], ['r', 'select by random']]
-        print(Fore.RED + 'Enter number of function!')
-        [print(Fore.LIGHTYELLOW_EX + x[0], Fore.LIGHTGREEN_EX + '==>', Fore.LIGHTBLUE_EX + x[1]) for x in sub_lst_functions]
+        print('Enter number of function!')
+        [print(x[0], '==>', x[1]) for x in sub_lst_functions]
         exit()
     if sys.argv[2] == 'a':
         selector = 'artist'
@@ -298,11 +292,11 @@ elif entry == 6:
             try:
                 fine_data = json.loads(raw_data.stdout)
             except json.decoder.JSONDecodeError as e: 
-                print(Fore.LIGHTRED_EX + str(e))
+                print(e)
                 continue
             time.sleep(10)
         except requests.exceptions.JSONDecodeError as e:
-            print(Fore.LIGHTRED_EX + str(e))
+            print(e)
             con.commit()
             cur.close()
             con.close()
@@ -370,6 +364,7 @@ elif entry == 9:
             cur.execute("INSERT INTO coma_fm(unique_song, title, artist, album) VALUES(?, ?, ?, ?)", [unique_song, track, artist,  album])
         except sqlite3.IntegrityError:
             print(unique_song)
+
 con.commit()
 cur.close()
 con.close()
